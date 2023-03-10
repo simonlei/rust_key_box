@@ -1,3 +1,4 @@
+use base64ct::{Base64, Encoder, Encoding};
 use rsa::pkcs1::LineEnding;
 use rsa::pkcs8::der::zeroize::Zeroizing;
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey};
@@ -8,6 +9,34 @@ pub(crate) struct MainKey {
     public_key: RsaPublicKey,
     private_key: RsaPrivateKey,
     max_id: u32,
+}
+
+impl MainKey {
+    pub(crate) fn encrypt(&self, pwd: String) -> String {
+        let mut rng = rand::thread_rng();
+        Base64::encode_string(
+            self.public_key
+                .encrypt(&mut rng, Pkcs1v15Encrypt, pwd.as_bytes())
+                .unwrap()
+                .as_slice(),
+        )
+    }
+}
+
+impl MainKey {
+    pub(crate) fn decrypt(&self, pwd: &String) -> String {
+        let decoded = Base64::decode_vec(pwd).unwrap();
+        let x = self.private_key.decrypt(Pkcs1v15Encrypt, decoded.as_slice()).unwrap();
+        String::from_utf8_lossy(x.as_slice()).to_string()
+    }
+}
+
+impl MainKey {
+    pub(crate) fn replace_max_key_id(&mut self, id: u32) {
+        if id > self.max_id {
+            self.max_id = id;
+        }
+    }
 }
 
 impl MainKey {

@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::io;
 use std::io::Write;
 
@@ -56,6 +57,8 @@ impl KeyBox {
             "h" | "help" => String::from("help"),
             "c" | "create" => self.create_new_key(),
             "l" | "list" => self.list_all_keys(),
+            s if s.starts_with("s ") => self.show_key(&s[2..]),
+            s if s.starts_with("show ") => self.show_key(&s[5..]),
             _ => String::from("help"),
         }
     }
@@ -72,6 +75,7 @@ impl KeyBox {
             password = pwd.val().to_string();
         }
         let id = self.main_key.get_next_id();
+        password = self.main_key.encrypt(password);
         let key = Key {
             url,
             user,
@@ -86,7 +90,27 @@ impl KeyBox {
     }
 
     fn list_all_keys(&self) -> String {
-        "".to_string()
+        let mut result = String::new();
+        for key in &self.keys {
+            result += format!("id:{} url:{} login:{} notes:{}\n", key.id, key.url, key.user, key.notes).as_str();
+        }
+        result
+    }
+    fn show_key(&self, input: &str) -> String {
+        let id: u32 = input.parse().unwrap();
+        println!("{}", id);
+        // show password
+        let pwd = self.decrypt_passwd(id);
+        // copy to clipboard
+        pwd
+    }
+    fn decrypt_passwd(&self, id: u32) -> String {
+        let key = self.keys.iter().find(|x| x.id == id);
+
+        match key {
+            Some(key) => self.main_key.decrypt(&key.password),
+            None => String::from("No such key"),
+        }
     }
 }
 
@@ -106,9 +130,23 @@ fn read_line(prompt: &str) -> String {
 
 impl KeyBox {
     pub fn load_with_password(key: String, pwd: String) -> KeyBox {
-        let main_key = MainKey::load_key_with_password(key, pwd);
-        let keys: Vec<Key> = Vec::new();
+        let mut main_key = MainKey::load_key_with_password(key, pwd);
+        let mut keys: Vec<Key> = Vec::new();
+        load_keys(&mut keys, &mut main_key);
         KeyBox { main_key, keys }
+    }
+}
+
+fn load_keys(keys: &mut Vec<Key>, main_key: &mut MainKey) {
+    for file in std::fs::read_dir("./data").unwrap() {
+        let path = file.unwrap().path();
+        let is_key = path.is_file() && path.extension().eq(&Some(OsStr::new("key")));
+        if is_key && !path.ends_with("main.key") {
+            println!("{}", path.display());
+            let key: Key = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            main_key.replace_max_key_id(key.id);
+            keys.push(key);
+        }
     }
 }
 

@@ -744,6 +744,7 @@ dependencies = [
 name = "rust_key_box"
 version = "0.1.0"
 dependencies = [
+ "base64ct",
  "rand 0.8.5",
  "rand_pwd",
  "rsa",
