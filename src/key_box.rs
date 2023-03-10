@@ -2,6 +2,7 @@ use std::ffi::OsStr;
 use std::io;
 use std::io::Write;
 
+use copypasta::{ClipboardContext, ClipboardProvider};
 use rand_pwd::RandPwd;
 use rsa::{Pkcs1v15Encrypt, PublicKey, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
@@ -98,11 +99,10 @@ impl KeyBox {
     }
     fn show_key(&self, input: &str) -> String {
         let id: u32 = input.parse().unwrap();
-        println!("{}", id);
-        // show password
         let pwd = self.decrypt_passwd(id);
-        // copy to clipboard
-        pwd
+        let mut ctx = ClipboardContext::new().unwrap();
+        ctx.set_contents(pwd.clone()).unwrap();
+        format!("Password is copied to clipboard:{}", pwd)
     }
     fn decrypt_passwd(&self, id: u32) -> String {
         let key = self.keys.iter().find(|x| x.id == id);
