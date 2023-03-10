@@ -4,13 +4,12 @@ use std::io::Write;
 
 use copypasta::{ClipboardContext, ClipboardProvider};
 use rand_pwd::RandPwd;
-use rsa::{Pkcs1v15Encrypt, PublicKey, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 
 use main_key::MainKey;
 
 pub use crate::errs::KeyBoxErr;
-use crate::{errs, main_key};
+use crate::main_key;
 
 pub struct KeyBox {
     main_key: MainKey,
@@ -24,6 +23,16 @@ struct Key {
     user: String,
     password: String,
     notes: String,
+}
+
+impl ToString for Key {
+    fn to_string(&self) -> String {
+        format!(
+            "id:{} url:{} login:{} notes:{}",
+            self.id, self.url, self.user, self.notes
+        )
+        .to_string()
+    }
 }
 
 impl KeyBox {
@@ -55,12 +64,18 @@ impl KeyBox {
 
     fn deal_with_command(&mut self, input: &str) -> String {
         match input {
-            "h" | "help" => String::from("help"),
+            "h" | "help" => self.show_help(),
             "c" | "create" => self.create_new_key(),
             "l" | "list" => self.list_all_keys(),
             s if s.starts_with("s ") => self.show_key(&s[2..]),
             s if s.starts_with("show ") => self.show_key(&s[5..]),
-            _ => String::from("help"),
+            q if q.starts_with("q ") => self.query_key(&q[2..]),
+            q if q.starts_with("query ") => self.query_key(&q[6..]),
+            e if e.starts_with("e ") => self.edit_key(&e[2..]),
+            e if e.starts_with("edit ") => self.edit_key(&e[5..]),
+            d if d.starts_with("d ") => self.delete_key(&d[2..]),
+            d if d.starts_with("delete ") => self.delete_key(&d[7..]),
+            _ => self.show_help(),
         }
     }
 
@@ -91,12 +106,9 @@ impl KeyBox {
     }
 
     fn list_all_keys(&self) -> String {
-        let mut result = String::new();
-        for key in &self.keys {
-            result += format!("id:{} url:{} login:{} notes:{}\n", key.id, key.url, key.user, key.notes).as_str();
-        }
-        result
+        display_keys(&self.keys.iter().collect())
     }
+
     fn show_key(&self, input: &str) -> String {
         let id: u32 = input.parse().unwrap();
         let pwd = self.decrypt_passwd(id);
@@ -112,6 +124,47 @@ impl KeyBox {
             None => String::from("No such key"),
         }
     }
+    fn show_help(&self) -> String {
+        "c/create        Create a key\n\
+        l/list           List all keys\n\
+        s/show id        Show and copy password for the key with id\n\
+        q/query string   Query keys\n\
+        d/delete id      Delete the key with id\n\
+        e/edit id        Edit the key with id"
+            .to_string()
+    }
+    fn query_key(&self, query: &str) -> String {
+        let filtered_keys: Vec<&Key> = self
+            .keys
+            .iter()
+            .filter(|x| x.url.contains(query) || x.user.contains(query) || x.notes.contains(query))
+            .collect();
+        display_keys(&filtered_keys)
+    }
+    fn edit_key(&self, input: &str) -> String {
+        let id: u32 = input.parse().unwrap();
+        let key = self.keys.iter().find(|x| x.id == id);
+
+        match key {
+            Some(key) => self.main_key.decrypt(&key.password),
+            None => String::from("No such key"),
+        }
+
+        "".to_string()
+    }
+    fn delete_key(&self, input: &str) -> String {
+        println!("Are you sure to delete key {}?Y for sure", input);
+        let mut sure = String::new();
+        match io::stdin().read_line(&mut sure) {
+            Ok(n) if sure == "Y" => real_delete_key(input),
+            _ => "".to_string(),
+        }
+    }
+}
+
+fn real_delete_key(input: &str) -> String {
+    let id: u32 = input.parse().unwrap();
+    "".to_string()
 }
 
 fn save_key(key: &Key) {
@@ -135,6 +188,15 @@ impl KeyBox {
         load_keys(&mut keys, &mut main_key);
         KeyBox { main_key, keys }
     }
+}
+
+fn display_keys(keys: &Vec<&Key>) -> String {
+    let mut result = String::new();
+    for key in keys {
+        result += &key.to_string();
+        result += "\n";
+    }
+    result.trim().to_string()
 }
 
 fn load_keys(keys: &mut Vec<Key>, main_key: &mut MainKey) {
