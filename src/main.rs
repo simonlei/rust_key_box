@@ -6,7 +6,7 @@ use rust_key_box::errs::KeyBoxErr;
 use rust_key_box::key_box::KeyBox;
 
 fn main() {
-    let key_box = match std::fs::read_to_string("data/main.key") {
+    let mut key_box = match std::fs::read_to_string("data/main.key") {
         Ok(key) => {
             let pwd = scanpw!("Password: ");
             KeyBox::load_with_password(key, pwd)
