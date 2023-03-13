@@ -141,30 +141,50 @@ impl KeyBox {
             .collect();
         display_keys(&filtered_keys)
     }
-    fn edit_key(&self, input: &str) -> String {
+    fn edit_key(&mut self, input: &str) -> String {
         let id: u32 = input.parse().unwrap();
-        let key = self.keys.iter().find(|x| x.id == id);
+        let key = self.keys.iter_mut().find(|x| x.id == id);
 
         match key {
-            Some(key) => self.main_key.decrypt(&key.password),
+            Some(key) => {
+                let url = read_line(format!("change url {} to:", key.url).as_str());
+                let user = read_line(format!("chagne login name {} to:", key.user).as_str());
+                let notes = read_line(format!("chagne notes {} to:", key.notes).as_str());
+                let mut password = read_line("password(empty to auto gen) :");
+                if password.trim().is_empty() {
+                    let mut pwd = RandPwd::new(8, 5, 3);
+                    pwd.join();
+                    password = pwd.val().to_string();
+                }
+                password = self.main_key.encrypt(password);
+                key.url = url;
+                key.user = user;
+                key.notes = notes;
+                key.password = password;
+                save_key(key);
+                format!("Key {} changed", key.id)
+            }
             None => String::from("No such key"),
         }
-
-        "".to_string()
     }
-    fn delete_key(&self, input: &str) -> String {
-        println!("Are you sure to delete key {}?Y for sure", input);
+    fn delete_key(&mut self, input: &str) -> String {
+        println!("Are you sure to delete key {}? Y for sure", input);
         let mut sure = String::new();
         match io::stdin().read_line(&mut sure) {
-            Ok(n) if sure == "Y" => real_delete_key(input),
+            Ok(n) if sure.trim() == "Y" => self.real_delete_key(input),
             _ => "".to_string(),
         }
     }
-}
-
-fn real_delete_key(input: &str) -> String {
-    let id: u32 = input.parse().unwrap();
-    "".to_string()
+    fn real_delete_key(&mut self, input: &str) -> String {
+        let id: u32 = input.parse().unwrap();
+        if let Some(index) = self.keys.iter().position(|x| x.id == id) {
+            let key = self.keys.swap_remove(index);
+            std::fs::remove_file(format!("data/{}.key", id)).unwrap();
+            format!("{} is deleted", input)
+        } else {
+            String::from("No such key")
+        }
+    }
 }
 
 fn save_key(key: &Key) {
