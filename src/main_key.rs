@@ -23,7 +23,7 @@ impl MainKey {
 }
 
 impl MainKey {
-    pub(crate) fn decrypt(&self, pwd: &String) -> String {
+    pub(crate) fn decrypt(&self, pwd: &str) -> String {
         let decoded = Base64::decode_vec(pwd).unwrap();
         let x = self.private_key.decrypt(Pkcs1v15Encrypt, decoded.as_slice()).unwrap();
         String::from_utf8_lossy(x.as_slice()).to_string()
@@ -68,7 +68,7 @@ impl MainKey {
             .to_pkcs8_encrypted_pem(rng, password.as_bytes(), LineEnding::CRLF)
             .unwrap();
         std::fs::create_dir("data").unwrap();
-        std::fs::write("data/main.key", encrypted_key.to_string()).unwrap();
+        std::fs::write("data/main.key", &encrypted_key).unwrap();
         let public_key = RsaPublicKey::from(&private_key);
         MainKey {
             public_key,

@@ -31,7 +31,6 @@ impl ToString for Key {
             "id:{} url:{} login:{} notes:{}",
             self.id, self.url, self.user, self.notes
         )
-        .to_string()
     }
 }
 
@@ -51,7 +50,7 @@ impl KeyBox {
                     if input.trim().eq("quit") {
                         break;
                     }
-                    let response = self.deal_with_command(&input.trim());
+                    let response = self.deal_with_command(input.trim());
                     println!("{response}");
                 }
                 Err(err) => {
