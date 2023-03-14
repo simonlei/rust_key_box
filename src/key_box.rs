@@ -126,12 +126,12 @@ impl KeyBox {
         }
     }
     fn show_help(&self) -> String {
-        "c/create        Create a key\n\
-        l/list           List all keys\n\
-        s/show id        Show and copy password for the key with id\n\
-        q/query string   Query keys\n\
-        d/delete id      Delete the key with id\n\
-        e/edit id        Edit the key with id"
+        r#"c/create         Create a key
+l/list           List all keys
+s/show id        Show and copy password for the key with id
+q/query string   Query keys
+d/delete id      Delete the key with id
+e/edit id        Edit the key with id"#
             .to_string()
     }
     fn query_key(&self, query: &str) -> Result<String, Box<dyn Error>> {
