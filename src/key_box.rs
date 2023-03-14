@@ -2,6 +2,7 @@ use std::ffi::OsStr;
 use std::io;
 use std::io::Write;
 
+use chrono::{NaiveDateTime, Utc};
 use copypasta::{ClipboardContext, ClipboardProvider};
 use rand_pwd::RandPwd;
 use serde::{Deserialize, Serialize};
@@ -23,13 +24,20 @@ struct Key {
     user: String,
     password: String,
     notes: String,
+    last_updated: i64,
 }
 
 impl ToString for Key {
     fn to_string(&self) -> String {
         format!(
-            "id:{} url:{} login:{} notes:{}",
-            self.id, self.url, self.user, self.notes
+            "id:{} url:{} login:{} notes:{} last_updated:{}",
+            self.id,
+            self.url,
+            self.user,
+            self.notes,
+            NaiveDateTime::from_timestamp_millis(self.last_updated)
+                .unwrap()
+                .format("%Y-%m-%d")
         )
     }
 }
@@ -88,6 +96,7 @@ impl KeyBox {
             notes,
             password,
             id,
+            last_updated: Utc::now().timestamp_millis(),
         };
         save_key(&key);
         let result = format!("Key {} is saved.", key.url);
@@ -151,6 +160,7 @@ impl KeyBox {
                 key.notes = notes;
             }
             key.password = password;
+            key.last_updated = Utc::now().timestamp_millis();
             save_key(key);
             format!("Key {} changed", key.id)
         } else {
@@ -216,6 +226,7 @@ impl KeyBox {
         let mut main_key = MainKey::load_key_with_password(key, pwd);
         let mut keys: Vec<Key> = Vec::new();
         load_keys(&mut keys, &mut main_key);
+        println!("Total {} keys loaded", keys.len());
         KeyBox { main_key, keys }
     }
 }
@@ -234,7 +245,7 @@ fn load_keys(keys: &mut Vec<Key>, main_key: &mut MainKey) {
         let path = file.unwrap().path();
         let is_key = path.is_file() && path.extension().eq(&Some(OsStr::new("key")));
         if is_key && !path.ends_with("main.key") {
-            println!("{}", path.display());
+            // println!("{}", path.display());
             let key: Key = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             main_key.replace_max_key_id(key.id);
             keys.push(key);
