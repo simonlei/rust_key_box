@@ -67,7 +67,8 @@ impl MainKey {
         let encrypted_key: Zeroizing<String> = private_key
             .to_pkcs8_encrypted_pem(rng, password.as_bytes(), LineEnding::CRLF)
             .unwrap();
-        std::fs::create_dir("data").unwrap();
+
+        std::fs::create_dir_all("data").unwrap();
         std::fs::write("data/main.key", &encrypted_key).unwrap();
         let public_key = RsaPublicKey::from(&private_key);
         MainKey {

@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::ffi::OsStr;
 use std::io;
 use std::io::Write;
@@ -58,8 +59,9 @@ impl KeyBox {
                     if input.trim().eq("quit") {
                         break;
                     }
-                    let response = self.deal_with_command(input.trim());
-                    println!("{response}");
+                    if let Ok(response) = self.deal_with_command(input.trim()) {
+                        println!("{response}");
+                    }
                 }
                 Err(err) => {
                     println!("Error:{}, exit", err);
@@ -69,9 +71,9 @@ impl KeyBox {
         }
     }
 
-    fn deal_with_command(&mut self, input: &str) -> String {
+    fn deal_with_command(&mut self, input: &str) -> Result<String, Box<dyn Error>> {
         match input {
-            "h" | "help" => self.show_help(),
+            "h" | "help" => Ok(self.show_help()),
             "c" | "create" => self.create_new_key(),
             "l" | "list" => self.list_all_keys(),
             s if s.starts_with("s ") => self.show_key(&s[2..]),
@@ -82,13 +84,13 @@ impl KeyBox {
             e if e.starts_with("edit ") => self.edit_key(&e[5..]),
             d if d.starts_with("d ") => self.delete_key(&d[2..]),
             d if d.starts_with("delete ") => self.delete_key(&d[7..]),
-            _ => self.show_help(),
+            _ => Ok(self.show_help()),
         }
     }
 
-    fn create_new_key(&mut self) -> String {
+    fn create_new_key(&mut self) -> Result<String, Box<dyn Error>> {
         println!("Creating new key, please input:");
-        let (url, user, notes, password) = read_input_for_key(&self.main_key, "url :", "login name :", "notes :");
+        let (url, user, notes, password) = read_input_for_key(&self.main_key, "url :", "login name :", "notes :")?;
         let id = self.main_key.get_next_id();
         let key = Key {
             url,
@@ -98,22 +100,22 @@ impl KeyBox {
             id,
             last_updated: Utc::now().timestamp_millis(),
         };
-        save_key(&key);
+        save_key(&key)?;
         let result = format!("Key {} is saved.", key.url);
         self.keys.push(key);
-        result
+        Ok(result)
     }
 
-    fn list_all_keys(&self) -> String {
-        display_keys(&self.keys.iter().collect())
+    fn list_all_keys(&self) -> Result<String, Box<dyn Error>> {
+        Ok(display_keys(&self.keys.iter().collect()))
     }
 
-    fn show_key(&self, input: &str) -> String {
-        let id: u32 = input.parse().unwrap();
+    fn show_key(&self, input: &str) -> Result<String, Box<dyn Error>> {
+        let id: u32 = input.parse()?;
         let pwd = self.decrypt_passwd(id);
         let mut ctx = ClipboardContext::new().unwrap();
         ctx.set_contents(pwd.clone()).unwrap();
-        format!("Password is copied to clipboard:{}", pwd)
+        Ok(format!("Password is copied to clipboard:{}", pwd))
     }
     fn decrypt_passwd(&self, id: u32) -> String {
         let key = self.keys.iter().find(|x| x.id == id);
@@ -132,23 +134,23 @@ impl KeyBox {
         e/edit id        Edit the key with id"
             .to_string()
     }
-    fn query_key(&self, query: &str) -> String {
+    fn query_key(&self, query: &str) -> Result<String, Box<dyn Error>> {
         let filtered_keys: Vec<&Key> = self
             .keys
             .iter()
             .filter(|x| x.url.contains(query) || x.user.contains(query) || x.notes.contains(query))
             .collect();
-        display_keys(&filtered_keys)
+        Ok(display_keys(&filtered_keys))
     }
-    fn edit_key(&mut self, input: &str) -> String {
-        let id: u32 = input.parse().unwrap();
+    fn edit_key(&mut self, input: &str) -> Result<String, Box<dyn Error>> {
+        let id: u32 = input.parse()?;
         if let Some(key) = self.keys.iter_mut().find(|x| x.id == id) {
             let (url, user, notes, password) = read_input_for_key(
                 &self.main_key,
                 format!("change url {} to:(empty to keep unchanged)", key.url).as_str(),
                 format!("chagne login name {} to:(empty to keep unchanged)", key.user).as_str(),
                 format!("chagne notes {} to:(empty to keep unchanged)", key.notes).as_str(),
-            );
+            )?;
 
             if !url.is_empty() {
                 key.url = url;
@@ -161,29 +163,29 @@ impl KeyBox {
             }
             key.password = password;
             key.last_updated = Utc::now().timestamp_millis();
-            save_key(key);
-            format!("Key {} changed", key.id)
+            save_key(key)?;
+            Ok(format!("Key {} changed", key.id))
         } else {
-            String::from("No such key")
+            Ok(String::from("No such key"))
         }
     }
 
-    fn delete_key(&mut self, input: &str) -> String {
+    fn delete_key(&mut self, input: &str) -> Result<String, Box<dyn Error>> {
         println!("Are you sure to delete key {}? Y for sure", input);
         let mut sure = String::new();
         match io::stdin().read_line(&mut sure) {
             Ok(_) if sure.trim() == "Y" => self.real_delete_key(input),
-            _ => "".to_string(),
+            _ => Ok("".to_string()),
         }
     }
-    fn real_delete_key(&mut self, input: &str) -> String {
-        let id: u32 = input.parse().unwrap();
+    fn real_delete_key(&mut self, input: &str) -> Result<String, Box<dyn Error>> {
+        let id: u32 = input.parse()?;
         if let Some(index) = self.keys.iter().position(|x| x.id == id) {
             self.keys.swap_remove(index);
-            std::fs::remove_file(format!("data/{}.key", id)).unwrap();
-            format!("{} is deleted", input)
+            std::fs::remove_file(format!("data/{}.key", id))?;
+            Ok(format!("{} is deleted", input))
         } else {
-            String::from("No such key")
+            Ok(String::from("No such key"))
         }
     }
 }
@@ -193,32 +195,33 @@ fn read_input_for_key(
     prompt_url: &str,
     prompt_user: &str,
     prompt_notes: &str,
-) -> (String, String, String, String) {
-    let url = read_line(prompt_url);
-    let user = read_line(prompt_user);
-    let notes = read_line(prompt_notes);
-    let mut password = read_line("password(empty to auto gen) :");
+) -> Result<(String, String, String, String), Box<dyn Error>> {
+    let url = read_line(prompt_url)?;
+    let user = read_line(prompt_user)?;
+    let notes = read_line(prompt_notes)?;
+    let mut password = read_line("password(empty to auto gen) :")?;
     if password.trim().is_empty() {
         let mut pwd = RandPwd::new(8, 5, 3);
         pwd.join();
         password = pwd.val().to_string();
     }
     password = main_key.encrypt(password);
-    (url, user, notes, password)
+    Ok((url, user, notes, password))
 }
 
-fn save_key(key: &Key) {
-    let json = serde_json::to_string(key).unwrap();
+fn save_key(key: &Key) -> Result<(), Box<dyn Error>> {
+    let json = serde_json::to_string(key)?;
     let file = format!("data/{}.key", key.id);
-    std::fs::write(file, json).unwrap();
+    std::fs::write(file, json)?;
+    Ok(())
 }
 
-fn read_line(prompt: &str) -> String {
+fn read_line(prompt: &str) -> Result<String, Box<dyn Error>> {
     print!("{}", prompt);
-    io::stdout().flush().unwrap();
+    io::stdout().flush()?;
     let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    input.trim().to_string()
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().to_string())
 }
 
 impl KeyBox {
