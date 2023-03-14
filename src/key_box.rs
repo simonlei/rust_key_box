@@ -81,17 +81,8 @@ impl KeyBox {
 
     fn create_new_key(&mut self) -> String {
         println!("Creating new key, please input:");
-        let url = read_line("url :");
-        let user = read_line("login name :");
-        let notes = read_line("notes :");
-        let mut password = read_line("password(empty to auto gen) :");
-        if password.trim().is_empty() {
-            let mut pwd = RandPwd::new(8, 5, 3);
-            pwd.join();
-            password = pwd.val().to_string();
-        }
+        let (url, user, notes, password) = read_input_for_key(&self.main_key, "url :", "login name :", "notes :");
         let id = self.main_key.get_next_id();
-        password = self.main_key.encrypt(password);
         let key = Key {
             url,
             user,
@@ -143,48 +134,68 @@ impl KeyBox {
     }
     fn edit_key(&mut self, input: &str) -> String {
         let id: u32 = input.parse().unwrap();
-        let key = self.keys.iter_mut().find(|x| x.id == id);
+        if let Some(key) = self.keys.iter_mut().find(|x| x.id == id) {
+            let (url, user, notes, password) = read_input_for_key(
+                &self.main_key,
+                format!("change url {} to:(empty to keep unchanged)", key.url).as_str(),
+                format!("chagne login name {} to:(empty to keep unchanged)", key.user).as_str(),
+                format!("chagne notes {} to:(empty to keep unchanged)", key.notes).as_str(),
+            );
 
-        match key {
-            Some(key) => {
-                let url = read_line(format!("change url {} to:", key.url).as_str());
-                let user = read_line(format!("chagne login name {} to:", key.user).as_str());
-                let notes = read_line(format!("chagne notes {} to:", key.notes).as_str());
-                let mut password = read_line("password(empty to auto gen) :");
-                if password.trim().is_empty() {
-                    let mut pwd = RandPwd::new(8, 5, 3);
-                    pwd.join();
-                    password = pwd.val().to_string();
-                }
-                password = self.main_key.encrypt(password);
+            if !url.is_empty() {
                 key.url = url;
-                key.user = user;
-                key.notes = notes;
-                key.password = password;
-                save_key(key);
-                format!("Key {} changed", key.id)
             }
-            None => String::from("No such key"),
+            if !user.is_empty() {
+                key.user = user;
+            }
+            if !notes.is_empty() {
+                key.notes = notes;
+            }
+            key.password = password;
+            save_key(key);
+            format!("Key {} changed", key.id)
+        } else {
+            String::from("No such key")
         }
     }
+
     fn delete_key(&mut self, input: &str) -> String {
         println!("Are you sure to delete key {}? Y for sure", input);
         let mut sure = String::new();
         match io::stdin().read_line(&mut sure) {
-            Ok(n) if sure.trim() == "Y" => self.real_delete_key(input),
+            Ok(_) if sure.trim() == "Y" => self.real_delete_key(input),
             _ => "".to_string(),
         }
     }
     fn real_delete_key(&mut self, input: &str) -> String {
         let id: u32 = input.parse().unwrap();
         if let Some(index) = self.keys.iter().position(|x| x.id == id) {
-            let key = self.keys.swap_remove(index);
+            self.keys.swap_remove(index);
             std::fs::remove_file(format!("data/{}.key", id)).unwrap();
             format!("{} is deleted", input)
         } else {
             String::from("No such key")
         }
     }
+}
+
+fn read_input_for_key(
+    main_key: &MainKey,
+    prompt_url: &str,
+    prompt_user: &str,
+    prompt_notes: &str,
+) -> (String, String, String, String) {
+    let url = read_line(prompt_url);
+    let user = read_line(prompt_user);
+    let notes = read_line(prompt_notes);
+    let mut password = read_line("password(empty to auto gen) :");
+    if password.trim().is_empty() {
+        let mut pwd = RandPwd::new(8, 5, 3);
+        pwd.join();
+        password = pwd.val().to_string();
+    }
+    password = main_key.encrypt(password);
+    (url, user, notes, password)
 }
 
 fn save_key(key: &Key) {
