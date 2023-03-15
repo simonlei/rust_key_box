@@ -3,7 +3,7 @@ use scanpw::scanpw;
 use rust_key_box::key_box::KeyBox;
 
 fn main() {
-    let mut key_box = match std::fs::read_to_string("data/main.key") {
+    let mut key_box = match std::fs::read_to_string(format!("{}/main.key", KeyBox::get_data_dir())) {
         Ok(key) => {
             let pwd = scanpw!("Password: ");
             KeyBox::load_with_password(key, pwd)

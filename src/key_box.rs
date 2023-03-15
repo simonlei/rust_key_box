@@ -182,7 +182,7 @@ e/edit id        Edit the key with id"#
         let id: u32 = input.parse()?;
         if let Some(index) = self.keys.iter().position(|x| x.id == id) {
             self.keys.swap_remove(index);
-            std::fs::remove_file(format!("data/{}.key", id))?;
+            std::fs::remove_file(format!("{}/{}.key", KeyBox::get_data_dir(), id))?;
             Ok(format!("{} is deleted", input))
         } else {
             Ok(String::from("No such key"))
@@ -211,7 +211,7 @@ fn read_input_for_key(
 
 fn save_key(key: &Key) -> Result<(), Box<dyn Error>> {
     let json = serde_json::to_string(key)?;
-    let file = format!("data/{}.key", key.id);
+    let file = format!("{}/{}.key", KeyBox::get_data_dir(), key.id);
     std::fs::write(file, json)?;
     Ok(())
 }
@@ -244,7 +244,7 @@ fn display_keys(keys: &Vec<&Key>) -> String {
 }
 
 fn load_keys(keys: &mut Vec<Key>, main_key: &mut MainKey) {
-    for file in std::fs::read_dir("./data").unwrap() {
+    for file in std::fs::read_dir(KeyBox::get_data_dir()).unwrap() {
         let path = file.unwrap().path();
         let is_key = path.is_file() && path.extension().eq(&Some(OsStr::new("key")));
         if is_key && !path.ends_with("main.key") {
@@ -261,5 +261,18 @@ impl KeyBox {
         let main_key = MainKey::generate_with_password(pwd);
         let keys: Vec<Key> = Vec::new();
         KeyBox { main_key, keys }
+    }
+
+    pub fn get_data_dir() -> String {
+        if cfg!(debug_assertions) {
+            "data/".to_string()
+        } else {
+            home::home_dir()
+                .unwrap()
+                .join(".keybox/")
+                .into_os_string()
+                .into_string()
+                .unwrap()
+        }
     }
 }

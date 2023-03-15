@@ -4,6 +4,8 @@ use rsa::pkcs8::der::zeroize::Zeroizing;
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey};
 use rsa::{Pkcs1v15Encrypt, PublicKey, RsaPrivateKey, RsaPublicKey};
 
+use crate::key_box::KeyBox;
+
 pub(crate) struct MainKey {
     public_key: RsaPublicKey,
     private_key: RsaPrivateKey,
@@ -67,9 +69,9 @@ impl MainKey {
         let encrypted_key: Zeroizing<String> = private_key
             .to_pkcs8_encrypted_pem(rng, password.as_bytes(), LineEnding::CRLF)
             .unwrap();
-
-        std::fs::create_dir_all("data").unwrap();
-        std::fs::write("data/main.key", &encrypted_key).unwrap();
+        let data_dir = KeyBox::get_data_dir();
+        std::fs::create_dir_all(&data_dir).unwrap();
+        std::fs::write(format!("{}/main.key", data_dir), &encrypted_key).unwrap();
         let public_key = RsaPublicKey::from(&private_key);
         MainKey {
             public_key,
