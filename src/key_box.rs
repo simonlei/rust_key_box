@@ -113,9 +113,13 @@ impl KeyBox {
     fn show_key(&self, input: &str) -> Result<String, Box<dyn Error>> {
         let id: u32 = input.parse()?;
         let pwd = self.decrypt_passwd(id);
-        let mut ctx = ClipboardContext::new().unwrap();
-        ctx.set_contents(pwd.clone()).unwrap();
-        Ok(format!("Password is copied to clipboard:{}", pwd))
+        match ClipboardContext::new() {
+            Ok(mut ctx) => {
+                ctx.set_contents(pwd.clone()).unwrap();
+                Ok(format!("Password is copied to clipboard:{}", pwd))
+            }
+            Err(_) => Ok(format!("Can't copy password to clipboard:{}", pwd)),
+        }
     }
     fn decrypt_passwd(&self, id: u32) -> String {
         let key = self.keys.iter().find(|x| x.id == id);
